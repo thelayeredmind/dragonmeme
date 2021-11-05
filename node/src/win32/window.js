@@ -25,6 +25,10 @@ const user32 = U.load()
 const comctl32 = C.load() 
 
 
+/* Win-APi is incomplete: 
+- SetWindowPos missing
+- TranslateMessage and DispatchMessage not working
+*/
   // Create Windows Process that handles the Window as Parent process
 function main(){
   // The Window-Message Callback
@@ -54,9 +58,11 @@ function main(){
 
   const hWnd = createWindow("Mini Windows Application", WndProc)
 
-  while (user32.GetMessageW(msg.ref(), hWnd, 0, 0)) { 
+  while (user32.GetMessageW(msg.ref(), hWnd, 0, 0)) {
+    console.info("Before Translation: ", msg.wParam)
     user32.TranslateMessageEx(msg.ref())
     user32.DispatchMessageW(msg.ref())
+    console.info("After Translation: ", msg.wParam)
     console.log(msg.wParam)
 
     if(msg.message == 563){
