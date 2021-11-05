@@ -2,6 +2,8 @@ const StructDi = require('ref-struct-di')
 const ref = require('ref-napi')
 const ffi = require('ffi-napi') // Foreign-Function Interface
 
+/* In reality I am programming C here, through Javascript 
+Not idiomatic Javascript / NodeJS. */
 
 const {
   C,
@@ -22,14 +24,15 @@ const Struct = StructDi(ref)
 const user32 = U.load()
 const comctl32 = C.load() 
 
-function main(){
 
   // Create Windows Process that handles the Window as Parent process
+function main(){
+  // The Window-Message Callback
   const WndProc = ffi.Callback(
     W.UINT32,
     [W.HWND, W.UINT, W.WPARAM, W.LPARAM],
     (hwnd, uMsg, wParam, lParam) => {
-      console.info('WndProc callback: ', uMsg, wParam, lParam)
+      console.info('WndProc callback: ', uMsg , wParam, lParam)
       let result = 0
       switch (uMsg) {
         default:
@@ -37,6 +40,9 @@ function main(){
           break
       }
       console.info('Sending LRESULT: ' + result + '\n')
+      if(uMsg == 16){
+        process.exit(0);
+      }
       return result
     }
   )
@@ -46,41 +52,28 @@ function main(){
 
   msg.pt = point.ref() // Message Pointer
 
-
-  // Timer for Window Lifetime
-
-  let count = 0
-  const countLimit = 500
-  const start = new Date().getTime()
-  const ttl = 30 // sec
-
   const hWnd = createWindow("Mini Windows Application", WndProc)
 
-  while (count < countLimit && user32.GetMessageW(msg.ref(), hWnd, 0, 0)) {
-    count++
-    console.log('---------- count: ' + count + ' ------------')
-
-    const end = new Date().getTime()
-    const delta = end - start
-    if (delta > ttl * 1000) {
-      console.info(`timeout and exit. count: ${count}`)
-      console.info(`elp ${delta}ms`)
-      process.exit(0)
-    }
-    else if (count >= countLimit) {
-      console.info('countLimit and exit.')
-      console.info(`elp ${delta}ms`)
-      process.exit(0)
-    }
-
+  while (user32.GetMessageW(msg.ref(), hWnd, 0, 0)) { 
     user32.TranslateMessageEx(msg.ref())
     user32.DispatchMessageW(msg.ref())
+    console.log(msg.wParam)
+
+    if(msg.message == 563){
+      for(let structmember in msg){
+        console.log(structmember, msg[structmember])
+      }
+      process.exit(0);
+    }
   }
-  console.log("Exit from While loop")
+
+  if(msg.message == 16){
+    process.exit(0);
+  }
+
   // avoid gc
   process.on('exit', () => {
     console.info('typeof WndProc is ' + typeof WndProc)
-    console.info(`${count} loops`)
   })
 }
 
@@ -109,12 +102,12 @@ function createWindow(title, proc) {
   wClass.lpszMenuName = ref.NULL
   wClass.lpszClassName = className
   wClass.hIconSm = 0
-
   if (!user32.RegisterClassExW(wClass.ref())) {
     throw new Error('Error registering class')
   }
   // const dStyle = U.constants.WS_OVERLAPPEDWINDOW
-  const exStyle = U.constants.WS_EX_ACCEPTFILES
+  const dragAndDrop = true
+  const exStyle = dragAndDrop ? U.constants.WS_EX_ACCEPTFILES : 0
   const dStyle = U.constants.WS_CAPTION | U.constants.WS_SYSMENU
   const hWnd = user32.CreateWindowExW(
     exStyle,
